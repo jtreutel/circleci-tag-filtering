@@ -1,0 +1,70 @@
+version: 2.1
+
+run_on_all: &run_on_all
+  filters:
+    tags:
+      only: /^v.*/
+
+run_on_tagged: &run_on_tagged
+  filters:
+    tags:
+      only: /^v.*/
+    branches:
+      ignore: /.*/
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:2021.10
+    steps:
+      - run: 
+          command: |
+            echo "Running the build job"
+  test:
+    docker:
+      - image: cimg/base:2021.10
+    steps:
+      - run: 
+          command: |
+            echo "Running the test job"
+  deploy:
+    docker:
+      - image: cimg/base:2021.10
+    steps:
+      - run: 
+          command: |
+            echo "Running the deploy job for << pipeline.git.tag >>!"
+workflows:
+  main:
+    jobs:
+      - build:
+          name: Building application << pipeline.git.tag >>
+          <<: *run_on_all
+      - test:
+          name: Testing application << pipeline.git.tag >>
+          requires:
+            - Building application << pipeline.git.tag >>
+          <<: *run_on_all
+      - hold-for-approval:
+          name: Approval required to deploy application << pipeline.git.tag >>
+          type: approval
+          requires:
+            - Testing application << pipeline.git.tag >>
+          <<: *run_on_tagged
+      - deploy:
+          name: Deploying application << pipeline.git.tag >>
+          requires:
+            - Approval required to deploy application << pipeline.git.tag >>
+          <<: *run_on_tagged
+
+  redeploy:
+    jobs:
+      - approve-to-redeploy:
+          name: Approve this job to redeploy << pipeline.git.tag >>
+          type: approval
+          <<: *run_on_tagged
+      - deploy:
+          name: Redeploying application << pipeline.git.tag >>
+          requires:
+            - Approve this job to redeploy << pipeline.git.tag >>
+          <<: *run_on_tagged
